@@ -1394,6 +1394,18 @@ OPERATOR  "operator"{B}*({ARITHOP}|{ASSIGNOP}|{LOGICOP}|{BITOP})
 					  current->virt = Virtual;
 					  lineCount();
 					}
+<FindMembers>{B}*"constexpr"{BN}+    	{ 
+                                          if (insideCpp)
+                                          {
+                                            current->type += " constexpr ";
+                                            current->spec |= Entry::ConstExpr;
+                                            lineCount();
+                                          }
+                                          else
+                                          {
+                                            REJECT;
+                                          }
+					}
 <FindMembers>{B}*"published"{BN}+	{ // UNO IDL published keyword
 					  if (insideIDL)
 					  {
@@ -2437,6 +2449,10 @@ OPERATOR  "operator"{B}*({ARITHOP}|{ASSIGNOP}|{LOGICOP}|{BITOP})
 					    else if (javaLike && qstrcmp(yytext,"protected")==0)
 					    {
 					      current->protection = Protected;
+					    }
+					    else if ((insideCS || insideD || insidePHP || insideJS) && qstrcmp(yytext,"internal")==0)
+					    {
+					      current->protection = Package;
 					    }
 					    else if (javaLike && qstrcmp(yytext,"private")==0)
 					    {
@@ -6526,7 +6542,7 @@ OPERATOR  "operator"{B}*({ARITHOP}|{ASSIGNOP}|{LOGICOP}|{BITOP})
                                           // middle of a comment block
   					  docBlock+=yytext;
   					}
-<DocBlock>("@@"|"\\\\"){ID}/[^a-z_A-Z0-9] { // escaped command
+<DocBlock>({CMD}{CMD}){ID}/[^a-z_A-Z0-9] { // escaped command
   					  docBlock+=yytext;
   					}
 <DocBlock>{CMD}("f$"|"f["|"f{")	        {
@@ -6635,7 +6651,7 @@ OPERATOR  "operator"{B}*({ARITHOP}|{ASSIGNOP}|{LOGICOP}|{BITOP})
                                             docBlock+=indent;
                                           }
   					}
-<DocCopyBlock>^{B}*"*"+/{BN}+"*"{BN}*	{ // start of a comment line with two *'s
+<DocCopyBlock>^{B}*"*"+/{B}+"*"{BN}*	{ // start of a comment line with two *'s
   					  if (docBlockName=="code")
                                           {
                                             QCString indent;
@@ -6716,7 +6732,7 @@ OPERATOR  "operator"{B}*({ARITHOP}|{ASSIGNOP}|{LOGICOP}|{BITOP})
   					}
 <DocCopyBlock><<EOF>>			{
   					  warn(yyFileName,yyLineNr,
-					      "reached end of file while inside a %s block!\n"
+					      "reached end of file while inside a `%s' block!\n"
 					      "The command that should end the block seems to be missing!\n",
 					      docBlockName.data());
   					  yyterminate();
@@ -6813,6 +6829,8 @@ OPERATOR  "operator"{B}*({ARITHOP}|{ASSIGNOP}|{LOGICOP}|{BITOP})
 <SkipComment>[^\*\n]+
 
 <*>"[["                                 { // C++11 attribute
+                                          if (!insideCpp) REJECT;
+                                          if (YY_START == CopyGString || YY_START == CopyGString) REJECT;
                                           lastC11AttributeContext = YY_START;
                                           BEGIN( SkipC11Attribute );
                                         }
@@ -6908,12 +6926,10 @@ static void newEntry()
 static void handleCommentBlock(const QCString &doc,bool brief)
 {
   static bool hideInBodyDocs = Config_getBool(HIDE_IN_BODY_DOCS);
-  int position=0;
-  bool needsEntry=FALSE;
   if (docBlockInBody && hideInBodyDocs) return;
   //printf("parseCommentBlock [%s] brief=%d\n",doc.data(),brief);
   int lineNr = brief ? current->briefLine : current->docLine;   // line of block start
-  
+
   // fill in inbodyFile && inbodyLine the first time, see bug 633891
   Entry *docEntry = docBlockInBody && previous ? previous : current;
   if (docBlockInBody && docEntry && docEntry->inbodyLine==-1)
@@ -6922,12 +6938,15 @@ static void handleCommentBlock(const QCString &doc,bool brief)
     docEntry->inbodyLine = lineNr;
   }
 
+  int position=0;
+  bool needsEntry=FALSE;
+  QCString processedDoc = preprocessCommentBlock(stripIndentation(doc),yyFileName,lineNr);
   while (parseCommentBlock(
 	g_thisParser,
 	docBlockInBody && previous ? previous : current,
-	stripIndentation(doc),        // text
-	yyFileName, // file
-	lineNr,     // line of block start
+	processedDoc, // text
+	yyFileName,   // file
+	lineNr,       // line of block start
 	docBlockInBody ? FALSE : brief,               // isBrief
 	docBlockInBody ? FALSE : docBlockAutoBrief,   // isJavaDocStyle
 	docBlockInBody,                               // isInBody
@@ -6935,7 +6954,7 @@ static void handleCommentBlock(const QCString &doc,bool brief)
         position,
         needsEntry
         )
-     ) 
+     )
   {
     //printf("parseCommentBlock position=%d [%s]\n",position,doc.data()+position);
     if (needsEntry) 
@@ -6968,6 +6987,7 @@ static void handleParametersCommentBlocks(ArgumentList *al)
     //printf("    Param %s docs=%s\n",a->name.data(),a->docs.data());
     if (!a->docs.isEmpty())
     {
+      if  (!a->name && a->type == "...") a->name= "...";
       int position=0;
       bool needsEntry;
 

@@ -689,7 +689,7 @@ static QCString substTypedef(const Definition *scope,const FileDef *fileScope,co
       if (d->definitionType()==Definition::TypeMember)
       {
         // that are also typedefs
-        MemberDef *md = (MemberDef *)d;
+        MemberDef *md = dynamic_cast<MemberDef *>(d);
         if (md->isTypedef()) // d is a typedef
         {
           // test accessibility of typedef within scope.
@@ -708,7 +708,7 @@ static QCString substTypedef(const Definition *scope,const FileDef *fileScope,co
   {
     Definition *d = (Definition*)di;
     // that are also typedefs
-    MemberDef *md = (MemberDef *)di;
+    MemberDef *md = dynamic_cast<MemberDef *>(di);
     if (md->isTypedef()) // d is a typedef
     {
       // test accessibility of typedef within scope.
@@ -786,12 +786,12 @@ static const Definition *followPath(const Definition *start,const FileDef *fileS
       if (current->definitionType()==Definition::TypeNamespace)
       {
         next = endOfPathIsUsedClass(
-            ((NamespaceDef *)current)->getUsedClasses(),qualScopePart);
+            (dynamic_cast<const NamespaceDef *>(current))->getUsedClasses(),qualScopePart);
       }
       else if (current->definitionType()==Definition::TypeFile)
       {
         next = endOfPathIsUsedClass(
-            ((FileDef *)current)->getUsedClasses(),qualScopePart);
+            (dynamic_cast<const FileDef *>(current))->getUsedClasses(),qualScopePart);
       }
       current = next;
       if (current==0) break;
@@ -968,13 +968,13 @@ int isAccessibleFrom(const Definition *scope,const FileDef *fileScope,const Defi
       (item->definitionType()==Definition::TypeMember &&                   // a member
        itemScope && itemScope->definitionType()==Definition::TypeClass  && // of a class
        scope->definitionType()==Definition::TypeClass &&                   // accessible
-       ((ClassDef*)scope)->isAccessibleMember((MemberDef *)item)           // from scope
+       (dynamic_cast<const ClassDef*>(scope))->isAccessibleMember(dynamic_cast<const MemberDef *>(item)) // from scope
       );
   bool nestedClassInsideBaseClass = 
       (item->definitionType()==Definition::TypeClass &&                    // a nested class
        itemScope && itemScope->definitionType()==Definition::TypeClass &&  // inside a base 
        scope->definitionType()==Definition::TypeClass &&                   // class of scope
-       ((ClassDef*)scope)->isBaseClass((ClassDef*)itemScope,TRUE)          
+       (dynamic_cast<const ClassDef*>(scope))->isBaseClass(dynamic_cast<ClassDef*>(itemScope),TRUE)          
       );
 
   if (itemScope==scope || memberAccessibleFromScope || nestedClassInsideBaseClass) 
@@ -1009,7 +1009,7 @@ int isAccessibleFrom(const Definition *scope,const FileDef *fileScope,const Defi
     // check if scope is a namespace, which is using other classes and namespaces
     if (scope->definitionType()==Definition::TypeNamespace)
     {
-      NamespaceDef *nscope = (NamespaceDef*)scope;
+      const NamespaceDef *nscope = dynamic_cast<const NamespaceDef*>(scope);
       //printf("  %s is namespace with %d used classes\n",nscope->name().data(),nscope->getUsedClasses());
       SDict<Definition> *cl = nscope->getUsedClasses();
       if (accessibleViaUsingClass(cl,fileScope,item)) 
@@ -1089,7 +1089,7 @@ int isAccessibleFromWithExpScope(const Definition *scope,const FileDef *fileScop
     else if (itemScope && newScope &&
              itemScope->definitionType()==Definition::TypeClass &&
              newScope->definitionType()==Definition::TypeClass &&
-             ((ClassDef*)newScope)->isBaseClass((ClassDef*)itemScope,TRUE,0)
+             (dynamic_cast<const ClassDef*>(newScope))->isBaseClass(dynamic_cast<const ClassDef*>(itemScope),TRUE,0)
             )
     {
       // inheritance is also ok. Example: looking for B::I, where 
@@ -1114,7 +1114,7 @@ int isAccessibleFromWithExpScope(const Definition *scope,const FileDef *fileScop
         // A::B::C but is explicit referenced as A::C, where B is imported
         // in A via a using directive.
         //printf("newScope is a namespace: %s!\n",newScope->name().data());
-        NamespaceDef *nscope = (NamespaceDef*)newScope;
+        const NamespaceDef *nscope = dynamic_cast<const NamespaceDef*>(newScope);
         SDict<Definition> *cl = nscope->getUsedClasses();
         if (cl)
         {
@@ -1165,7 +1165,7 @@ int isAccessibleFromWithExpScope(const Definition *scope,const FileDef *fileScop
     //printf("    failed to resolve: scope=%s\n",scope->name().data());
     if (scope->definitionType()==Definition::TypeNamespace)
     {
-      NamespaceDef *nscope = (NamespaceDef*)scope;
+      const NamespaceDef *nscope = dynamic_cast<const NamespaceDef*>(scope);
       NamespaceSDict *nl = nscope->getUsedNamespaces();
       if (accessibleViaUsingNamespace(nl,fileScope,item,explicitScopePart)) 
       {
@@ -1227,7 +1227,7 @@ static void getResolvedSymbol(const Definition *scope,
   // only look at classes and members that are enums or typedefs
   if (d->definitionType()==Definition::TypeClass ||
       (d->definitionType()==Definition::TypeMember && 
-       (((MemberDef*)d)->isTypedef() || ((MemberDef*)d)->isEnumerate()) 
+       ((dynamic_cast<MemberDef*>(d))->isTypedef() || (dynamic_cast<MemberDef*>(d))->isEnumerate()) 
       )
      )
   {
@@ -1240,7 +1240,7 @@ static void getResolvedSymbol(const Definition *scope,
       // see if we are dealing with a class or a typedef
       if (d->definitionType()==Definition::TypeClass) // d is a class
       {
-        ClassDef *cd = (ClassDef *)d;
+        ClassDef *cd = dynamic_cast<ClassDef *>(d);
         //printf("cd=%s\n",cd->name().data());
         if (!cd->isTemplateArgument()) // skip classes that
           // are only there to 
@@ -1285,7 +1285,7 @@ static void getResolvedSymbol(const Definition *scope,
       }
       else if (d->definitionType()==Definition::TypeMember)
       {
-        MemberDef *md = (MemberDef *)d;
+        MemberDef *md = dynamic_cast<MemberDef *>(d);
         //printf("  member isTypedef()=%d\n",md->isTypedef());
         if (md->isTypedef()) // d is a typedef
         {
@@ -1707,7 +1707,7 @@ QCString removeRedundantWhiteSpace(const QCString &s)
   // improve the performance of this function
   static char *growBuf = 0;
   static int growBufLen = 0;
-  if (s.length()*3>growBufLen) // For input character we produce at most 3 output characters,
+  if ((int)s.length()*3>growBufLen) // For input character we produce at most 3 output characters,
   {
     growBufLen = s.length()*3;
     growBuf = (char *)realloc(growBuf,growBufLen+1); // add 1 for 0-terminator
@@ -1847,7 +1847,8 @@ QCString removeRedundantWhiteSpace(const QCString &s)
       case '*':
         if (i>0 && pc!=' ' && pc!='\t' && pc!=':' &&
                    pc!='*' && pc!='&'  && pc!='(' && pc!='/' &&
-                   pc!='.' && (osp<9 || !(pc=='>' && osp==11)))
+                   pc!='.' && osp<9
+           )
           // avoid splitting &&, **, .*, operator*, operator->*
         {
           *dst++=' ';
@@ -1855,7 +1856,7 @@ QCString removeRedundantWhiteSpace(const QCString &s)
         *dst++=c;
         break;
       case '&':
-        if (i>0 && isId(pc))
+        if (i>0 && isId(pc) && osp<9)
         {
           if (nc != '=')
           // avoid splitting operator&=
@@ -1895,7 +1896,7 @@ QCString removeRedundantWhiteSpace(const QCString &s)
           if (g_charAroundSpace.charMap[(uchar)pc].before &&
               g_charAroundSpace.charMap[(uchar)nc].after  &&
               !(pc==',' && nc=='.') &&
-              (osp<8 || (osp>=8 && pc!='"' && isId(nc)) || (osp>=8 && pc!='"' && nc!='"'))
+              (osp<8 || (osp>=8 && isId(pc) && isId(nc)))
                   // e.g.    'operator >>' -> 'operator>>',
                   //         'operator "" _x' -> 'operator""_x',
                   // but not 'operator int' -> 'operatorint'
@@ -5001,7 +5002,7 @@ bool generateLink(OutputDocInterface &od,const char *clName,
           compound->definitionType()==Definition::TypeGroup /* is group */ 
          )
       {
-        linkText=((GroupDef *)compound)->groupTitle(); // use group's title as link
+        linkText=(dynamic_cast<GroupDef *>(compound))->groupTitle(); // use group's title as link
       }
       else if (compound->definitionType()==Definition::TypeFile)
       {
@@ -5373,7 +5374,7 @@ static void initBaseClassHierarchy(BaseClassList *bcl)
     {
       initBaseClassHierarchy(cd->baseClasses());
     }
-    cd->visited=FALSE;
+    cd->setVisited(FALSE);
   }
 }
 //----------------------------------------------------------------------------
@@ -5413,7 +5414,7 @@ void initClassHierarchy(ClassSDict *cl)
   ClassDef *cd;
   for ( ; (cd=cli.current()); ++cli)
   {
-    cd->visited=FALSE;
+    cd->setVisited(FALSE);
     initBaseClassHierarchy(cd->baseClasses());
   }
 }
@@ -5444,6 +5445,7 @@ QCString escapeCharsInString(const char *name,bool allowDots,bool allowUnderscor
   static bool allowUnicodeNames = Config_getBool(ALLOW_UNICODE_NAMES);
   static GrowBuf growBuf;
   growBuf.clear();
+  if (name==0) return "";
   char c;
   const char *p=name;
   while ((c=*p++)!=0)
@@ -5914,7 +5916,7 @@ QCString convertToId(const char *s)
 }
 
 /*! Converts a string to an XML-encoded string */
-QCString convertToXML(const char *s)
+QCString convertToXML(const char *s, bool keepEntities)
 {
   static GrowBuf growBuf;
   growBuf.clear();
@@ -5927,7 +5929,30 @@ QCString convertToXML(const char *s)
     {
       case '<':  growBuf.addStr("&lt;");   break;
       case '>':  growBuf.addStr("&gt;");   break;
-      case '&':  growBuf.addStr("&amp;");  break;
+      case '&':  if (keepEntities)
+                 {
+                   const char *e=p;
+                   char ce;
+                   while ((ce=*e++))
+                   {
+                     if (ce==';' || (!(isId(ce) || ce=='#'))) break;
+                   }
+                   if (ce==';') // found end of an entity
+                   {
+                     // copy entry verbatim
+                     growBuf.addChar(c);
+                     while (p<e) growBuf.addChar(*p++);
+                   }
+                   else
+                   {
+                     growBuf.addStr("&amp;");
+                   }
+                 }
+                 else
+                 {
+                   growBuf.addStr("&amp;");
+                 }
+                 break;
       case '\'': growBuf.addStr("&apos;"); break; 
       case '"':  growBuf.addStr("&quot;"); break;
       case  1: case  2: case  3: case  4: case  5: case  6: case  7: case  8:
@@ -6658,7 +6683,7 @@ PageDef *addRelatedPage(const char *name,const QCString &ptitle,
       baseName=baseName.left(baseName.length()-Doxygen::htmlFileExtension.length());
 
     QCString title=ptitle.stripWhiteSpace();
-    pd=new PageDef(fileName,startLine,baseName,doc,title);
+    pd=createPageDef(fileName,startLine,baseName,doc,title);
 
     pd->setRefItems(sli);
     pd->setLanguage(lang);
@@ -6674,7 +6699,7 @@ PageDef *addRelatedPage(const char *name,const QCString &ptitle,
 
     if (gd) gd->addPage(pd);
 
-    if (!pd->title().isEmpty())
+    if (pd->hasTitle())
     {
       //outputList->writeTitle(pi->name,pi->title);
 
@@ -6831,6 +6856,7 @@ void filterLatexString(FTextStream &t,const char *str,
         case '%':  t << "\\%"; break;
         case '#':  t << "\\#"; break;
         case '$':  t << "\\$"; break;
+        case '-':  t << "-\\/"; break;
         case '^':  (usedTableLevels()>0) ? t << "\\string^" : t << (char)c;    break;
         case '~':  (usedTableLevels()>0) ? t << "\\string~" : t << (char)c;    break;
         case ' ':  if (keepSpaces) t << "~"; else t << ' ';
@@ -6939,6 +6965,7 @@ void filterLatexString(FTextStream &t,const char *str,
 
 QCString latexEscapeLabelName(const char *s)
 {
+  if (s==0) return "";
   QGString result;
   QCString tmp(qstrlen(s)+1);
   FTextStream t(&result);
@@ -6976,6 +7003,7 @@ QCString latexEscapeLabelName(const char *s)
 
 QCString latexEscapeIndexChars(const char *s)
 {
+  if (s==0) return "";
   QGString result;
   QCString tmp(qstrlen(s)+1);
   FTextStream t(&result);
@@ -7014,6 +7042,7 @@ QCString latexEscapeIndexChars(const char *s)
 
 QCString latexEscapePDFString(const char *s)
 {
+  if (s==0) return "";
   QGString result;
   FTextStream t(&result);
   const char *p=s;
@@ -7038,6 +7067,7 @@ QCString latexEscapePDFString(const char *s)
 
 QCString latexFilterURL(const char *s)
 {
+  if (s==0) return "";
   QGString result;
   FTextStream t(&result);
   const char *p=s;
@@ -7451,7 +7481,7 @@ MemberDef *getMemberFromSymbol(Definition *scope,FileDef *fileScope,
         if (distance!=-1 && distance<minDistance)
         {
           minDistance = distance;
-          bestMatch = (MemberDef *)d;
+          bestMatch = dynamic_cast<MemberDef *>(d);
           //printf("new best match %s distance=%d\n",bestMatch->qualifiedName().data(),distance);
         }
       }
@@ -7466,7 +7496,7 @@ MemberDef *getMemberFromSymbol(Definition *scope,FileDef *fileScope,
     if (distance!=-1 && distance<minDistance)
     {
       minDistance = distance;
-      bestMatch = (MemberDef *)d;
+      bestMatch = dynamic_cast<MemberDef *>(d);
       //printf("new best match %s distance=%d\n",bestMatch->qualifiedName().data(),distance);
     }
   }
@@ -8190,10 +8220,6 @@ QCString externalRef(const QCString &relPath,const QCString &ref,bool href)
       { // relative path -> prepend relPath.
         result.prepend(relPath);
         l+=relPath.length();
-      }
-      if (!href){
-        result.prepend("doxygen=\""+ref+":");
-        l+=10+ref.length();
       }
       if (l>0 && result.at(l-1)!='/') result+='/';
       if (!href) result.append("\" ");
@@ -8919,10 +8945,7 @@ void convertProtectionLevel(
 
 bool mainPageHasTitle()
 {
-  if (Doxygen::mainPage==0) return FALSE;
-  if (Doxygen::mainPage->title().isEmpty()) return FALSE;
-  if (Doxygen::mainPage->title().lower()=="notitle") return FALSE;
-  return TRUE;
+  return Doxygen::mainPage!=0 && Doxygen::mainPage->hasTitle();
 }
 
 QCString getDotImageExtension(void)

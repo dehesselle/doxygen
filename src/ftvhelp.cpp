@@ -223,7 +223,7 @@ static QCString node2URL(FTVNode *n,bool overruleFile=FALSE,bool srcLink=FALSE)
   {
     if (overruleFile && n->def && n->def->definitionType()==Definition::TypeFile)
     {
-      FileDef *fd = (FileDef*)n->def;
+      FileDef *fd = dynamic_cast<FileDef*>(n->def);
       if (srcLink)
       {
         url = fd->getSourceFileBase();
@@ -286,7 +286,7 @@ void FTVHelp::generateLink(FTextStream &t,FTVNode *n)
       t << "<a class=\"elRef\" ";
       QCString result = externalLinkTarget();
       if (result != "") setTarget = TRUE;
-      t << result << externalRef("",n->ref,FALSE);
+      t << result;
     }
     else // local link
     {
@@ -417,9 +417,9 @@ void FTVHelp::generateTree(FTextStream &t, const QList<FTVNode> &nl,int level,in
     {
       FileDef *srcRef=0;
       if (n->def && n->def->definitionType()==Definition::TypeFile &&
-          ((FileDef*)n->def)->generateSourceFile())
+          (dynamic_cast<FileDef*>(n->def))->generateSourceFile())
       {
-        srcRef = (FileDef*)n->def;
+        srcRef = dynamic_cast<FileDef*>(n->def);
       }
       if (srcRef)
       {
@@ -560,7 +560,7 @@ static bool generateJSTree(NavIndexEntryList &navIndex,FTextStream &t,
     {
       if (n->def && n->def->definitionType()==Definition::TypeFile)
       {
-        FileDef *fd = (FileDef*)n->def;
+        FileDef *fd = dynamic_cast<FileDef*>(n->def);
         bool doc,src;
         doc = fileVisibleInIndex(fd,src);
         if (doc)
@@ -635,29 +635,14 @@ static void generateJSNavTree(const QList<FTVNode> &nodeList)
     //tidx << "var NAVTREEINDEX =" << endl;
     //tidx << "{" << endl;
     FTextStream t(&f);
-		t << "/*\n@ @licstart  The following is the entire license notice for the\n"
-			"JavaScript code in this file.\n\nCopyright (C) 1997-2017 by Dimitri van Heesch\n\n"
-			"This program is free software; you can redistribute it and/or modify\n"
-			"it under the terms of the GNU General Public License as published by\n"
-			"the Free Software Foundation; either version 2 of the License, or\n"
-			"(at your option) any later version.\n\n"
-			"This program is distributed in the hope that it will be useful,\n"
-			"but WITHOUT ANY WARRANTY; without even the implied warranty of\n"
-			" MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the\n"
-			" GNU General Public License for more details.\n\n"
-			"You should have received a copy of the GNU General Public License along\n"
-			"with this program; if not, write to the Free Software Foundation, Inc.,\n"
-			"51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.\n\n"
-			"@licend  The above is the entire license notice\n"
-			"for the JavaScript code in this file\n"
-			"*/\n";
+    t << JAVASCRIPT_LICENSE_TEXT;
     t << "var NAVTREE =" << endl;
     t << "[" << endl;
     t << "  [ ";
     QCString &projName = Config_getString(PROJECT_NAME);
     if (projName.isEmpty())
     {
-      if (Doxygen::mainPage && !Doxygen::mainPage->title().isEmpty()) // Use title of main page as root
+      if (mainPageHasTitle()) // Use title of main page as root
       {
         t << "\"" << convertToJSString(Doxygen::mainPage->title()) << "\", ";
       }

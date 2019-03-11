@@ -66,6 +66,7 @@
 #include "fortrancode.h"
 #include "pre.h"
 #include "arguments.h"
+#include "debug.h"
 
 // Toggle for some debugging info
 //#define DBG_CTX(x) fprintf x
@@ -2411,9 +2412,7 @@ static void startCommentBlock(bool brief)
 
 static void handleCommentBlock(const QCString &doc,bool brief)
 {
-  bool needsEntry = FALSE;
   static bool hideInBodyDocs = Config_getBool(HIDE_IN_BODY_DOCS);
-  int position=0;
   if (docBlockInBody && hideInBodyDocs)
   {
     docBlockInBody = FALSE;
@@ -2421,10 +2420,13 @@ static void handleCommentBlock(const QCString &doc,bool brief)
   }
   DBG_CTX((stderr,"call parseCommentBlock [%s]\n",doc.data()));
   int lineNr = brief ? current->briefLine : current->docLine;
+  int position=0;
+  bool needsEntry = FALSE;
+  QCString processedDoc = preprocessCommentBlock(doc,yyFileName,lineNr);
   while (parseCommentBlock(
 	g_thisParser,
 	docBlockInBody ? subrCurrent.getFirst() : current,
-	doc,        // text
+	processedDoc, // text
 	yyFileName, // file
 	lineNr,
 	docBlockInBody ? FALSE : brief, 
@@ -2639,6 +2641,8 @@ static void parseMain(const char *fileName,const char *fileBuf,Entry *rt, Fortra
       //printf("Input fixed form string:\n%s\n", fileBuf);
       //printf("===========================\n");
       inputString = prepassFixedForm(fileBuf, NULL);
+      Debug::print(Debug::FortranFixed2Free,0,"======== Fixed to Free format  =========\n---- Input fixed form string ------- \n%s\n", fileBuf);
+      Debug::print(Debug::FortranFixed2Free,0,"---- Resulting free form string ------- \n%s\n", inputString);
       //printf("Resulting free form string:\n%s\n", inputString);
       //printf("===========================\n");
 

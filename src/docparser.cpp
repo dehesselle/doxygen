@@ -112,6 +112,8 @@ static QCString               g_includeFileName;
 static QCString               g_includeFileText;
 static uint                   g_includeFileOffset;
 static uint                   g_includeFileLength;
+static uint                   g_includeFileLine;
+static bool                   g_includeFileShowLineNo;
 
 
 /** Parser's context to store all global variables. 
@@ -143,6 +145,8 @@ struct DocParserContext
   QCString  includeFileText;
   uint     includeFileOffset;
   uint     includeFileLength;
+  uint     includeFileLine;
+  bool     includeFileLineNo;
 
   TokenInfo *token;
 };
@@ -190,6 +194,8 @@ static void docParserPushContext(bool saveParamInfo=TRUE)
   ctx->includeFileText    = g_includeFileText;
   ctx->includeFileOffset  = g_includeFileOffset;
   ctx->includeFileLength  = g_includeFileLength;
+  ctx->includeFileLine    = g_includeFileLine;
+  ctx->includeFileLineNo  = g_includeFileShowLineNo;
   
   ctx->token              = g_token;
   g_token = new TokenInfo;
@@ -228,6 +234,8 @@ static void docParserPopContext(bool keepParamInfo=FALSE)
   g_includeFileText     = ctx->includeFileText;
   g_includeFileOffset   = ctx->includeFileOffset;
   g_includeFileLength   = ctx->includeFileLength;
+  g_includeFileLine     = ctx->includeFileLine;
+  g_includeFileShowLineNo   = ctx->includeFileLineNo;
 
   delete g_token;
   g_token               = ctx->token;
@@ -335,11 +343,11 @@ static QCString findAndCopyImage(const char *fileName,DocImage::Type type, bool 
               "could not write output image %s",qPrint(outputFile));
         }
       }
-      else
-      {
-        warn(g_fileName,doctokenizerYYlineno,
-             "Prevented to copy file %s onto itself!\n",qPrint(inputFile));
-      }
+      //else
+      //{
+      //  warn(g_fileName,doctokenizerYYlineno,
+      //       "Prevented to copy file %s onto itself!\n",qPrint(inputFile));
+      //}
     }
     else
     {
@@ -422,7 +430,7 @@ static void checkArgumentName(const QCString &name,bool isParam)
       argName=argName.stripWhiteSpace();
       //printf("argName=`%s' aName=%s\n",argName.data(),aName.data());
       if (argName.right(3)=="...") argName=argName.left(argName.length()-3);
-      if (aName==argName) 
+      if (aName==argName && isParam)
       {
 	g_paramsFound.insert(aName,(void *)(0x8));
 	found=TRUE;
@@ -509,7 +517,7 @@ static void checkUnOrMultipleDocumentedParams()
                          "argument '" + aName +
                          "' from the argument list of " +
                          QCString(g_memberDef->qualifiedName()) +
-                         " has muliple @param documentation sections");
+                         " has multiple @param documentation sections");
         }
       }
       if (found)
@@ -616,27 +624,16 @@ static void detectNoDocumentedParams()
         g_memberDef->setHasDocumentedParams(TRUE);
       }
     }
-    //printf("Member %s hadDocumentedReturnType()=%d hasReturnCommand=%d\n",
+    //printf("Member %s hasDocumentedReturnType()=%d hasReturnCommand=%d\n",
     //    g_memberDef->name().data(),g_memberDef->hasDocumentedReturnType(),g_hasReturnCommand);
     if (!g_memberDef->hasDocumentedReturnType() && // docs not yet found
         g_hasReturnCommand)
     {
       g_memberDef->setHasDocumentedReturnType(TRUE);
     }
-    else if ( // see if return needs to documented 
-        g_memberDef->hasDocumentedReturnType() ||
-        returnType.isEmpty()         || // empty return type
-        returnType.find("void")!=-1  || // void return type
-        returnType.find("subroutine")!=-1 || // fortran subroutine
-        g_memberDef->isConstructor() || // a constructor
-        g_memberDef->isDestructor()     // or destructor
-       )
-    {
-      g_memberDef->setHasDocumentedReturnType(TRUE);
-    }
     else if ( // see if return type is documented in a function w/o return type
-        g_memberDef->hasDocumentedReturnType() &&
-        (returnType.isEmpty()              || // empty return type
+        g_hasReturnCommand &&
+        (//returnType.isEmpty()              || // empty return type
          returnType.find("void")!=-1       || // void return type
          returnType.find("subroutine")!=-1 || // fortran subroutine
          g_memberDef->isConstructor()      || // a constructor
@@ -644,7 +641,18 @@ static void detectNoDocumentedParams()
         )
        )
     {
-      warn_doc_error(g_fileName,doctokenizerYYlineno,"documented empty return type");
+      warn_doc_error(g_fileName,doctokenizerYYlineno,"documented empty return type of  %s",g_memberDef->qualifiedName().data());
+    }
+    else if ( // see if return needs to documented 
+        g_memberDef->hasDocumentedReturnType() ||
+        //returnType.isEmpty()         || // empty return type
+        returnType.find("void")!=-1  || // void return type
+        returnType.find("subroutine")!=-1 || // fortran subroutine
+        g_memberDef->isConstructor() || // a constructor
+        g_memberDef->isDestructor()     // or destructor
+       )
+    {
+      g_memberDef->setHasDocumentedReturnType(TRUE);
     }
   }
 }
@@ -1037,6 +1045,11 @@ static int handleAHref(DocNode *parent,QList<DocNode> &children,const HtmlAttrib
     {
       if (!opt->value.isEmpty())
       {
+        // copy attributes
+        HtmlAttribList attrList = tagHtmlAttribs;
+        // and remove the href attribute
+        bool result = attrList.remove(index);
+        ASSERT(result);
         DocAnchor *anc = new DocAnchor(parent,opt->value,TRUE);
         children.append(anc);
         break; // stop looking for other tag attribs
@@ -1152,7 +1165,7 @@ static void handleLinkedWord(DocNode *parent,QList<DocNode> &children,bool ignor
       }
       else if (compound->definitionType()==Definition::TypeGroup)
       {
-        name=((GroupDef*)compound)->groupTitle();
+        name=(dynamic_cast<GroupDef*>(compound))->groupTitle();
       }
       children.append(new 
           DocLinkedWord(parent,name,
@@ -1164,7 +1177,7 @@ static void handleLinkedWord(DocNode *parent,QList<DocNode> &children,bool ignor
                      );
     }
     else if (compound->definitionType()==Definition::TypeFile &&
-             ((FileDef*)compound)->generateSourceFile()
+             (dynamic_cast<FileDef*>(compound))->generateSourceFile()
             ) // undocumented file that has source code we can link to
     {
       children.append(new 
@@ -1929,7 +1942,7 @@ DocLinkedWord::DocLinkedWord(DocNode *parent,const QCString &word,
 
 //---------------------------------------------------------------------------
 
-DocAnchor::DocAnchor(DocNode *parent,const QCString &id,bool newAnchor) 
+DocAnchor::DocAnchor(DocNode *parent,const QCString &id,bool newAnchor)
 {
   m_parent = parent; 
   if (id.isEmpty())
@@ -1999,6 +2012,8 @@ void DocInclude::parse()
   DBG(("DocInclude::parse(file=%s,text=%s)\n",qPrint(m_file),qPrint(m_text)));
   switch(m_type)
   {
+    case DontIncWithLines:
+      // fall through
     case IncWithLines:
       // fall through
     case Include:
@@ -2009,6 +2024,8 @@ void DocInclude::parse()
       g_includeFileText   = m_text;
       g_includeFileOffset = 0;
       g_includeFileLength = m_text.length();
+      g_includeFileLine   = 0;
+      g_includeFileShowLineNo = (m_type == DontIncWithLines || m_type == IncWithLines);
       //printf("g_includeFile=<<%s>>\n",g_includeFileText.data());
       break;
     case VerbInclude: 
@@ -2043,10 +2060,18 @@ void DocInclude::parse()
 
 void DocIncOperator::parse()
 {
+  if (g_includeFileName.isEmpty())
+  {
+    warn_doc_error(g_fileName,doctokenizerYYlineno,
+                   "No previous '\\include' or \\dontinclude' command for '\\%s' present",
+                   typeAsString());
+  }
+
   m_includeFileName = g_includeFileName;
   const char *p = g_includeFileText;
   uint l = g_includeFileLength;
   uint o = g_includeFileOffset;
+  uint il = g_includeFileLine;
   DBG(("DocIncOperator::parse() text=%s off=%d len=%d\n",qPrint(p),o,l));
   uint so = o,bo;
   bool nonEmpty = FALSE;
@@ -2058,6 +2083,7 @@ void DocIncOperator::parse()
         char c = p[o];
         if (c=='\n') 
         {
+          g_includeFileLine++;
           if (nonEmpty) break; // we have a pattern to match
           so=o+1; // no pattern, skip empty line
         }
@@ -2069,10 +2095,12 @@ void DocIncOperator::parse()
       }
       if (g_includeFileText.mid(so,o-so).find(m_pattern)!=-1)
       {
+        m_line  = il;
         m_text = g_includeFileText.mid(so,o-so);
         DBG(("DocIncOperator::parse() Line: %s\n",qPrint(m_text)));
       }
       g_includeFileOffset = QMIN(l,o+1); // set pointer to start of new line
+      m_showLineNo = g_includeFileShowLineNo;
       break;
     case SkipLine:
       while (o<l)
@@ -2083,6 +2111,7 @@ void DocIncOperator::parse()
           char c = p[o];
           if (c=='\n')
           {
+            g_includeFileLine++;
             if (nonEmpty) break; // we have a pattern to match
             so=o+1; // no pattern, skip empty line
           }
@@ -2094,6 +2123,7 @@ void DocIncOperator::parse()
         }
         if (g_includeFileText.mid(so,o-so).find(m_pattern)!=-1)
         {
+          m_line  = il;
           m_text = g_includeFileText.mid(so,o-so);
           DBG(("DocIncOperator::parse() SkipLine: %s\n",qPrint(m_text)));
           break;
@@ -2101,6 +2131,7 @@ void DocIncOperator::parse()
         o++; // skip new line
       }
       g_includeFileOffset = QMIN(l,o+1); // set pointer to start of new line
+      m_showLineNo = g_includeFileShowLineNo;
       break;
     case Skip:
       while (o<l)
@@ -2111,6 +2142,7 @@ void DocIncOperator::parse()
           char c = p[o];
           if (c=='\n')
           {
+            g_includeFileLine++;
             if (nonEmpty) break; // we have a pattern to match
             so=o+1; // no pattern, skip empty line
           }
@@ -2127,6 +2159,7 @@ void DocIncOperator::parse()
         o++; // skip new line
       }
       g_includeFileOffset = so; // set pointer to start of new line
+      m_showLineNo = g_includeFileShowLineNo;
       break;
     case Until:
       bo=o;
@@ -2138,6 +2171,7 @@ void DocIncOperator::parse()
           char c = p[o];
           if (c=='\n')
           {
+            g_includeFileLine++;
             if (nonEmpty) break; // we have a pattern to match
             so=o+1; // no pattern, skip empty line
           }
@@ -2149,6 +2183,7 @@ void DocIncOperator::parse()
         }
         if (g_includeFileText.mid(so,o-so).find(m_pattern)!=-1)
         {
+          m_line  = il;
           m_text = g_includeFileText.mid(bo,o-bo);
           DBG(("DocIncOperator::parse() Until: %s\n",qPrint(m_text)));
           break;
@@ -2156,6 +2191,7 @@ void DocIncOperator::parse()
         o++; // skip new line
       }
       g_includeFileOffset = QMIN(l,o+1); // set pointer to start of new line
+      m_showLineNo = g_includeFileShowLineNo;
       break;
   }
 }
@@ -2564,16 +2600,16 @@ DocRef::DocRef(DocNode *parent,const QCString &target,const QCString &context) :
     {
       if (anchor.isEmpty() &&                                  /* compound link */
           compound->definitionType()==Definition::TypeGroup && /* is group */
-          ((GroupDef *)compound)->groupTitle()                 /* with title */
+          (dynamic_cast<GroupDef *>(compound))->groupTitle()                 /* with title */
          )
       {
-        m_text=((GroupDef *)compound)->groupTitle(); // use group's title as link
+        m_text=(dynamic_cast<GroupDef *>(compound))->groupTitle(); // use group's title as link
       }
       else if (compound->definitionType()==Definition::TypeMember &&
-          ((MemberDef*)compound)->isObjCMethod())
+          (dynamic_cast<MemberDef*>(compound))->isObjCMethod())
       {
         // Objective C Method
-        MemberDef *member = (MemberDef*)compound;
+        MemberDef *member = dynamic_cast<MemberDef*>(compound);
         bool localLink = g_memberDef ? member->getClassDef()==g_memberDef->getClassDef() : FALSE;
         m_text = member->objCMethodName(localLink,g_inSeeBlock);
       }
@@ -2585,7 +2621,7 @@ DocRef::DocRef(DocNode *parent,const QCString &target,const QCString &context) :
       return;
     }
     else if (compound && compound->definitionType()==Definition::TypeFile &&
-             ((FileDef*)compound)->generateSourceFile()
+             (dynamic_cast<FileDef*>(compound))->generateSourceFile()
             ) // undocumented file that has source code we can link to
     {
       m_file = compound->getSourceFileBase();
@@ -2724,8 +2760,8 @@ DocLink::DocLink(DocNode *parent,const QCString &target)
       m_file = compound->getOutputFileBase();
       m_ref  = compound->getReference();
     }
-    else if (compound && compound->definitionType()==Definition::TypeFile && 
-             ((FileDef*)compound)->generateSourceFile()
+    else if (compound && compound->definitionType()==Definition::TypeFile &&
+             (dynamic_cast<FileDef*>(compound))->generateSourceFile()
             ) // undocumented file that has source code we can link to
     {
       m_file = compound->getSourceFileBase();
@@ -2981,6 +3017,11 @@ DocImage::DocImage(DocNode *parent,const HtmlAttribList &attribs,const QCString 
   m_parent = parent;
 }
 
+bool DocImage::isSVG() const
+{
+  return m_url.isEmpty() ? m_name.right(4)==".svg" : m_url.right(4)==".svg";
+}
+
 void DocImage::parse()
 {
   defaultHandleTitleAndSize(CMD_IMAGE,this,m_children,m_width,m_height);
@@ -3068,7 +3109,7 @@ int DocHtmlHeader::parse()
             }
             else if (tagId==HTML_BR)
             {
-              DocLineBreak *lb = new DocLineBreak(this);
+              DocLineBreak *lb = new DocLineBreak(this,g_token->attribs);
               m_children.append(lb);
             }
             else
@@ -5259,6 +5300,10 @@ void DocPara::handleInclude(const QCString &cmdName,DocInclude::Type t)
     {
       t = DocInclude::SnipWithLines;
     }
+    else if (t==DocInclude::DontInclude && optList.contains("lineno"))
+    {
+      t = DocInclude::DontIncWithLines;
+    }
     else if (t==DocInclude::Include && optList.contains("doc"))
     {
       t = DocInclude::IncludeDoc;
@@ -6075,13 +6120,13 @@ int DocPara::handleHtmlStartTag(const QCString &tagName,const HtmlAttribList &ta
       break;
     case HTML_BR:
       {
-        DocLineBreak *lb = new DocLineBreak(this);
+        DocLineBreak *lb = new DocLineBreak(this,tagHtmlAttribs);
         m_children.append(lb);
       }
       break;
     case HTML_HR:
       {
-        DocHorRuler *hr = new DocHorRuler(this);
+        DocHorRuler *hr = new DocHorRuler(this,tagHtmlAttribs);
         m_children.append(hr);
       }
       break;
@@ -6856,6 +6901,11 @@ endparagraph:
   DocNode *n = g_nodeStack.pop();
   ASSERT(n==this);
   DBG(("DocPara::parse() end retval=%x\n",retval));
+  if (!g_token->endTag && n->kind()==DocNode::Kind_Para &&
+      retval==TK_NEWPARA && g_token->name.lower() == "p")
+  {
+    ((DocPara *)n)->setAttribs(g_token->attribs);
+  }
   INTERNAL_ASSERT(retval==0 || retval==TK_NEWPARA || retval==TK_LISTITEM || 
          retval==TK_ENDLIST || retval>RetVal_OK 
 	);
@@ -7123,7 +7173,7 @@ void DocRoot::parse()
     DocPara *par = new DocPara(this);
     if (isFirst) { par->markFirst(); isFirst=FALSE; }
     retval=par->parse();
-    if (!par->isEmpty()) 
+    if (!par->isEmpty() || par->attribs().count()>0)
     {
       m_children.append(par);
       lastPar=par;
@@ -7531,12 +7581,12 @@ DocRoot *validatingParseDoc(const char *fileName,int startLine,
   }
   else if (ctx && ctx->definitionType()==Definition::TypePage)
   {
-    Definition *scope = ((PageDef*)ctx)->getPageScope();
+    Definition *scope = (dynamic_cast<PageDef*>(ctx))->getPageScope();
     if (scope && scope!=Doxygen::globalScope) g_context = scope->name();
   }
   else if (ctx && ctx->definitionType()==Definition::TypeGroup)
   {
-    Definition *scope = ((GroupDef*)ctx)->getGroupScope();
+    Definition *scope = (dynamic_cast<GroupDef*>(ctx))->getGroupScope();
     if (scope && scope!=Doxygen::globalScope) g_context = scope->name();
   }
   else
@@ -7586,7 +7636,7 @@ DocRoot *validatingParseDoc(const char *fileName,int startLine,
       case Definition::TypePage:
         {
           PageDef *pd = (PageDef *)ctx;
-          if (!pd->title().isEmpty())
+          if (pd->hasTitle())
           {
             name = theTranslator->trPage(TRUE,TRUE)+" "+pd->title();
           }

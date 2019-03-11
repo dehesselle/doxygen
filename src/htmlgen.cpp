@@ -25,7 +25,6 @@
 #include "config.h"
 #include "util.h"
 #include "doxygen.h"
-#include "logos.h"
 #include "diagram.h"
 #include "version.h"
 #include "dot.h"
@@ -43,7 +42,7 @@
 #include "ftvhelp.h"
 #include "bufstr.h"
 #include "resourcemgr.h"
-
+#include "tooltip.h"
 
 //#define DBG_HTML(x) x;
 #define DBG_HTML(x)
@@ -556,7 +555,7 @@ void HtmlCodeGenerator::_writeCodeLink(const char *className,
   if (ref)
   {
     m_t << "<a class=\"" << className << "Ref\" ";
-    m_t << externalLinkTarget() << externalRef(m_relPath,ref,FALSE);
+    m_t << externalLinkTarget();
   }
   else
   {
@@ -667,7 +666,15 @@ void HtmlCodeGenerator::startCodeLine(bool hasLineNumbers)
 
 void HtmlCodeGenerator::endCodeLine()
 {
-  if (m_streamSet) m_t << "</div>";
+  if (m_streamSet)
+  {
+    if (m_col == 0)
+    {
+      m_t << " ";
+      m_col++;
+    }
+    m_t << "</div>";
+  }
 }
 
 void HtmlCodeGenerator::startFontClass(const char *s)
@@ -769,7 +776,7 @@ void HtmlGenerator::init()
         t << endl <<
           "$(document).ready(function() {\n"
           "  $('.code,.codeRef').each(function() {\n"
-          "    $(this).data('powertip',$('#'+$(this).attr('href').replace(/.*\\//,'').replace(/[^a-z_A-Z0-9]/g,'_')).html());\n"
+          "    $(this).data('powertip',$('#a'+$(this).attr('href').replace(/.*\\//,'').replace(/[^a-z_A-Z0-9]/g,'_')).html());\n"
           "    $(this).powerTip({ placement: 's', smartPlacement: true, mouseOnToPopup: true });\n"
           "  });\n"
           "});\n";
@@ -981,6 +988,9 @@ void HtmlGenerator::writePageFooter(FTextStream &t,const QCString &lastTitle,
 
 void HtmlGenerator::writeFooter(const char *navPath)
 {
+  // Currently only tooltips in HTML
+  TooltipManager::instance()->writeTooltips(m_codeGen);
+
   writePageFooter(t,lastTitle,relPath,navPath);
 }
 
@@ -1111,7 +1121,7 @@ void HtmlGenerator::startIndexItem(const char *ref,const char *f)
     if (ref)
     {
       t << "<a class=\"elRef\" ";
-      t << externalLinkTarget() << externalRef(relPath,ref,FALSE);
+      t << externalLinkTarget();
     }
     else
     {
@@ -1157,7 +1167,7 @@ void HtmlGenerator::writeObjectLink(const char *ref,const char *f,
   if (ref)
   {
     t << "<a class=\"elRef\" ";
-    t << externalLinkTarget() << externalRef(relPath,ref,FALSE);
+    t << externalLinkTarget();
   }
   else
   {

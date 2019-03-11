@@ -841,7 +841,7 @@ static void updateCallContextForSmartPointer()
   Definition *d = g_theCallContext.getScope();
   //printf("updateCallContextForSmartPointer() cd=%s\n",cd ? d->name().data() : "<none>");
   MemberDef *md;
-  if (d && d->definitionType()==Definition::TypeClass && (md=((ClassDef*)d)->isSmartPointer()))
+  if (d && d->definitionType()==Definition::TypeClass && (md=(dynamic_cast<ClassDef*>(d))->isSmartPointer()))
   {
     ClassDef *ncd = stripClassName(md->typeString(),md->getOuterScope());
     if (ncd)
@@ -1176,7 +1176,7 @@ static bool generateClassMemberLink(CodeOutputInterface &ol,Definition *def,cons
 {
   if (def && def->definitionType()==Definition::TypeClass)
   {
-    ClassDef *cd = (ClassDef*)def;
+    ClassDef *cd = dynamic_cast<ClassDef*>(def);
     MemberDef *xmd = cd->getMemberByName(memName);
     //printf("generateClassMemberLink(class=%s,member=%s)=%p\n",def->name().data(),memName,xmd);
     if (xmd)
@@ -1197,7 +1197,7 @@ static bool generateClassMemberLink(CodeOutputInterface &ol,Definition *def,cons
   }
   else if (def && def->definitionType()==Definition::TypeNamespace)
   {
-    NamespaceDef *nd = (NamespaceDef*)def;
+    NamespaceDef *nd = dynamic_cast<NamespaceDef*>(def);
     //printf("Looking for %s inside namespace %s\n",memName,nd->name().data());
     Definition *innerDef = nd->findInnerCompound(memName);
     if (innerDef)
@@ -1483,7 +1483,7 @@ static void writeObjCMethodCall(ObjCCallCtx *ctx)
 	  if (g_currentDefinition && 
 	      g_currentDefinition->definitionType()==Definition::TypeClass)
 	  {
-	    ctx->objectType = (ClassDef *)g_currentDefinition;
+	    ctx->objectType = dynamic_cast<ClassDef *>(g_currentDefinition);
 	  }
 	}
 	else
@@ -1507,7 +1507,7 @@ static void writeObjCMethodCall(ObjCCallCtx *ctx)
 	  if (g_currentDefinition && 
 	      g_currentDefinition->definitionType()==Definition::TypeClass)
 	  {
-	    ctx->objectVar = ((ClassDef *)g_currentDefinition)->getMemberByName(ctx->objectTypeOrName);
+	    ctx->objectVar = (dynamic_cast<ClassDef *>(g_currentDefinition))->getMemberByName(ctx->objectTypeOrName);
 	    //printf("      ctx->objectVar=%p\n",ctx->objectVar);
 	    if (ctx->objectVar)
 	    {
@@ -1589,7 +1589,7 @@ static void writeObjCMethodCall(ObjCCallCtx *ctx)
 	      if (g_currentDefinition && 
 		  g_currentDefinition->definitionType()==Definition::TypeClass)
 	      {
-	        ctx->objectType = (ClassDef *)g_currentDefinition;
+	        ctx->objectType = dynamic_cast<ClassDef *>(g_currentDefinition);
 	        if (ctx->objectType->categoryOf()) 
 	        {
 	          ctx->objectType = ctx->objectType->categoryOf();
@@ -1608,7 +1608,7 @@ static void writeObjCMethodCall(ObjCCallCtx *ctx)
 	      if (g_currentDefinition &&
 		  g_currentDefinition->definitionType()==Definition::TypeClass)
 	      {
-		ClassDef *cd = (ClassDef *)g_currentDefinition;
+		ClassDef *cd = dynamic_cast<ClassDef *>(g_currentDefinition);
 		if (cd->categoryOf()) 
 		{
 		  cd = cd->categoryOf();
@@ -2295,7 +2295,7 @@ RAWEND    ")"[^ \t\(\)\\]{0,16}\"
 					    if (getResolvedClass(g_currentDefinition,g_sourceFileDef,g_curClassName)==0)
 					    {
 					      DBG_CTX((stderr,"Adding new class %s\n",g_curClassName.data()));
-					      ClassDef *ncd=new ClassDef("<code>",1,1,
+					      ClassDef *ncd=createClassDef("<code>",1,1,
 				 		  g_curClassName,ClassDef::Class,0,0,FALSE);
 					      g_codeClassSDict->append(g_curClassName,ncd);
 					      // insert base classes.
@@ -2473,10 +2473,6 @@ RAWEND    ")"[^ \t\(\)\\]{0,16}\"
 					  BEGIN(FuncCall);
   					}
 <Body>{FLOWCONDITION}/{BN}*"("          {
-                                          if (g_currentMemberDef && g_currentMemberDef->isFunction())
-                                          {
-                                            g_currentMemberDef->addFlowKeyWord();
-                                          }
                                           startFontClass("keywordflow");
                                           codifyLines(yytext);
                                           endFontClass();
@@ -2494,10 +2490,6 @@ RAWEND    ")"[^ \t\(\)\\]{0,16}\"
 					  }
   					}
 <Body>{FLOWCONDITION}/([^a-z_A-Z0-9]) 	{
-                                          if (g_currentMemberDef && g_currentMemberDef->isFunction())
-                                          {
-                                            g_currentMemberDef->addFlowKeyWord();
-                                          }
                                           startFontClass("keywordflow");
                                           codifyLines(yytext);
                                           endFontClass();
@@ -2512,10 +2504,6 @@ RAWEND    ")"[^ \t\(\)\\]{0,16}\"
 					  endFontClass();
   					}
 <Body>{FLOWCONDITION}/{B}*              {
-                                          if (g_currentMemberDef && g_currentMemberDef->isFunction())
-                                          {
-                                            g_currentMemberDef->addFlowKeyWord();
-                                          }
                                           startFontClass("keywordflow");
                                           codifyLines(yytext);
                                           endFontClass();
@@ -3051,10 +3039,6 @@ RAWEND    ")"[^ \t\(\)\\]{0,16}\"
 					  endFontClass();
 					}
 <MemberCall2,FuncCall>{FLOWCONDITION}/([^a-z_A-Z0-9]) {
-                                          if (g_currentMemberDef && g_currentMemberDef->isFunction())
-                                          {
-                                            g_currentMemberDef->addFlowKeyWord();
-                                          }
                                           addParmType();
                                           g_parmName=yytext;
                                           startFontClass("keywordflow");
@@ -3745,7 +3729,6 @@ void parseCCode(CodeOutputInterface &od,const char *className,const QCString &s,
 
   printlex(yy_flex_debug, TRUE, __FILE__, fd ? fd->fileName().data(): NULL);
 
-  TooltipManager::instance()->clearTooltips();
   if (g_codeClassSDict==0)
   {
     resetCCodeParserState();
@@ -3786,7 +3769,7 @@ void parseCCode(CodeOutputInterface &od,const char *className,const QCString &s,
   if (fd==0)
   {
     // create a dummy filedef for the example
-    g_sourceFileDef = new FileDef("",(exName?exName:"generated"));
+    g_sourceFileDef = createFileDef("",(exName?exName:"generated"));
     cleanupSourceDef = TRUE;
   }
   g_insideObjC  = lang==SrcLangExt_ObjC;
@@ -3827,10 +3810,6 @@ void parseCCode(CodeOutputInterface &od,const char *className,const QCString &s,
     endFontClass();
     DBG_CTX((stderr,"endCodeLine(%d)\n",g_yyLineNr));
     g_code->endCodeLine();
-  }
-  if (fd)
-  {
-    TooltipManager::instance()->writeTooltips(*g_code);
   }
   if (cleanupSourceDef)
   {

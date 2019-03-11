@@ -300,22 +300,31 @@ class DocURL : public DocNode
 class DocLineBreak : public DocNode
 {
   public:
-    DocLineBreak(DocNode *parent) { m_parent=parent; }
+    DocLineBreak(DocNode *parent) { m_parent = parent; }
+    DocLineBreak(DocNode *parent,const HtmlAttribList &attribs)
+      : m_attribs(attribs) { m_parent = parent; }
     Kind kind() const          { return Kind_LineBreak; }
     void accept(DocVisitor *v) { v->visit(this); }
 
+    const HtmlAttribList &attribs() const { return m_attribs; }
+
   private:
+    HtmlAttribList m_attribs;
 };
 
 /** Node representing a horizontal ruler */
 class DocHorRuler : public DocNode
 {
   public:
-    DocHorRuler(DocNode *parent) { m_parent = parent; }
+    DocHorRuler(DocNode *parent,const HtmlAttribList &attribs)
+      : m_attribs(attribs) { m_parent = parent; }
     Kind kind() const          { return Kind_HorRuler; }
     void accept(DocVisitor *v) { v->visit(this); }
 
+    const HtmlAttribList &attribs() const { return m_attribs; }
+
   private:
+    HtmlAttribList m_attribs;
 };
 
 /** Node representing an anchor */
@@ -328,9 +337,12 @@ class DocAnchor : public DocNode
     QCString file() const      { return m_file; }
     void accept(DocVisitor *v) { v->visit(this); }
 
+    const HtmlAttribList &attribs() const { return m_attribs; }
+
   private:
     QCString  m_anchor;
     QCString  m_file;
+    HtmlAttribList m_attribs;
 };
 
 /** Node representing a citation of some bibliographic reference */
@@ -551,7 +563,8 @@ class DocInclude : public DocNode
 {
   public:
   enum Type { Include, DontInclude, VerbInclude, HtmlInclude, LatexInclude,
-	      IncWithLines, Snippet , IncludeDoc, SnippetDoc, SnipWithLines};
+	      IncWithLines, Snippet , IncludeDoc, SnippetDoc, SnipWithLines,
+	      DontIncWithLines};
     DocInclude(DocNode *parent,const QCString &file,
                const QCString context, Type t,
                bool isExample,const QCString exampleFile,
@@ -595,11 +608,24 @@ class DocIncOperator : public DocNode
     enum Type { Line, SkipLine, Skip, Until };
     DocIncOperator(DocNode *parent,Type t,const QCString &pat,
                    const QCString &context,bool isExample,const QCString &exampleFile) : 
-      m_type(t), m_pattern(pat), m_context(context), 
+      m_type(t), m_pattern(pat), m_context(context),
       m_isFirst(FALSE), m_isLast(FALSE),
       m_isExample(isExample), m_exampleFile(exampleFile) { m_parent = parent; }
     Kind kind() const           { return Kind_IncOperator; }
     Type type() const           { return m_type; }
+    const char *typeAsString() const
+    {
+      switch(m_type)
+      {
+        case Line:     return "line";
+        case SkipLine: return "skipline";
+        case Skip:     return "skip";
+        case Until:    return "until";
+      }
+      return "";
+    }
+    int line() const             { return m_line; }
+    bool showLineNo() const      { return m_showLineNo; }
     QCString text() const        { return m_text; }
     QCString pattern() const     { return m_pattern; }
     QCString context() const     { return m_context; }
@@ -615,6 +641,8 @@ class DocIncOperator : public DocNode
 
   private:
     Type     m_type;
+    int      m_line;
+    bool     m_showLineNo;
     QCString  m_text;
     QCString  m_pattern;
     QCString  m_context;
@@ -768,6 +796,7 @@ class DocImage : public CompAccept<DocImage>
     QCString relPath() const    { return m_relPath; }
     QCString url() const        { return m_url; }
     bool isInlineImage() const  { return m_inlineImage; }
+    bool isSVG() const;
     const HtmlAttribList &attribs() const { return m_attribs; }
     void parse();
 
@@ -1198,11 +1227,14 @@ class DocPara : public CompAccept<DocPara>
     int handleHtmlHeader(const HtmlAttribList &tagHtmlAttribs,int level);
 
     bool injectToken(int tok,const QCString &tokText);
+    const HtmlAttribList &attribs() const { return m_attribs; }
+    void setAttribs(const HtmlAttribList &attribs) { m_attribs = attribs; }
 
   private:
     QCString  m_sectionId;
     bool     m_isFirst;
     bool     m_isLast;
+    HtmlAttribList m_attribs;
 };
 
 /** Node representing a parameter list. */

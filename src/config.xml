@@ -667,7 +667,7 @@ Go to the <a href="commands.html">next</a> section or return to the
 ]]>
       </docs>
     </option>
-    <option type='int' id='TOC_INCLUDE_HEADINGS' minval='0' maxval='99' defval='0' depends='MARKDOWN_SUPPORT'>
+    <option type='int' id='TOC_INCLUDE_HEADINGS' minval='0' maxval='99' defval='5' depends='MARKDOWN_SUPPORT'>
       <docs>
 <![CDATA[
  When the \c TOC_INCLUDE_HEADINGS tag is set to a non-zero value, all headings
@@ -835,6 +835,14 @@ Go to the <a href="commands.html">next</a> section or return to the
 <![CDATA[
  If the \c EXTRACT_PRIVATE tag is set to \c YES, all private members of a
  class will be included in the documentation.
+]]>
+      </docs>
+    </option>
+    <option type='bool' id='EXTRACT_PRIV_VIRTUAL' defval='0'>
+      <docs>
+<![CDATA[
+ If the \c EXTRACT_PRIV_VIRTUAL tag is set to \c YES, documented private
+ virtual methods of a class will be included in the documentation.
 ]]>
       </docs>
     </option>
@@ -1692,7 +1700,7 @@ to disable this feature.
 ]]>
       </docs>
     </option>
-    <option type='string' id='CLANG_COMPILATION_DATABASE_PATH' setting='USE_LIBCLANG' defval='0'>
+    <option type='string' id='CLANG_DATABASE_PATH' setting='USE_LIBCLANG' defval=''>
       <docs>
 <![CDATA[
  If clang assisted parsing is enabled you can provide the clang parser with the
@@ -2594,11 +2602,12 @@ EXTRA_SEARCH_MAPPINGS = tagname1=loc1 tagname2=loc2 ...
 ]]>
       </docs>
     </option>
-    <option type='string' id='LATEX_MAKEINDEX_CMD' defval='\makeindex' depends='GENERATE_LATEX'>
+    <option type='string' id='LATEX_MAKEINDEX_CMD' defval='makeindex' depends='GENERATE_LATEX'>
       <docs>
 <![CDATA[
  The \c LATEX_MAKEINDEX_CMD tag can be used to specify the command name to
- generate index for \f$\mbox{\LaTeX}\f$.
+ generate index for \f$\mbox{\LaTeX}\f$. In case there is no backslash (`\`) as first character it
+ will be automatically added in the \f$\mbox{\LaTeX}\f$ code.
 
  @note This tag is used in the generated output file (`.tex`).
  \sa  \ref cfg_makeindex_cmd_name "MAKEINDEX_CMD_NAME" for the part in the `Makefile` / `make.bat`.
@@ -2942,6 +2951,15 @@ or
  dump the program listings (including syntax highlighting
  and cross-referencing information) to the XML output. Note that
  enabling this will significantly increase the size of the XML output.
+]]>
+      </docs>
+    </option>
+    <option type='bool' id='XML_NS_MEMB_FILE_SCOPE' defval='0' depends='GENERATE_XML'>
+      <docs>
+<![CDATA[
+ If the \c XML_NS_MEMB_FILE_SCOPE tag is set to \c YES, doxygen
+ will include namespace members in file scope as well, matching the HTML
+ output.
 ]]>
       </docs>
     </option>

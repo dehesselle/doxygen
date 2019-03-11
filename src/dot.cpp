@@ -336,7 +336,6 @@ static QCString replaceRef(const QCString &buf,const QCString relPath,
         {
           result = externalLinkTarget();
 	  if (result != "") setTarget = TRUE;
-	  result += externalRef(relPath,ref,FALSE);
         }
         result+= href+"=\"";
         result+=externalRef(relPath,ref,TRUE);
@@ -377,7 +376,6 @@ static bool convertMapFile(FTextStream &t,const char *mapName,
                            const QCString &context=QCString())
 {
   QFile f(mapName);
-  static QRegExp re("id=\"node[0-9]*\"");
   if (!f.open(IO_ReadOnly)) 
   {
     err("problems opening map file %s for inclusion in the docs!\n"
@@ -396,7 +394,17 @@ static bool convertMapFile(FTextStream &t,const char *mapName,
 
       if (buf.left(5)=="<area")
       {
-        t << replaceRef(buf,relPath,urlOnly,context).replace(re,"");
+	QCString replBuf = replaceRef(buf,relPath,urlOnly,context);
+        // strip id="..." from replBuf since the id's are not needed and not unique.
+        int indexS = replBuf.find("id=\""), indexE;
+        if (indexS>0 && (indexE=replBuf.find('"',indexS+4))!=-1)
+	{
+	  t << replBuf.left(indexS-1) << replBuf.right(replBuf.length() - indexE - 1);
+	}
+	else
+	{
+          t << replBuf;
+	}
       }
     }
   }
@@ -712,7 +720,7 @@ static bool insertMapFile(FTextStream &out,const QCString &mapFile,
   {
     QGString tmpstr;
     FTextStream tmpout(&tmpstr);
-    convertMapFile(tmpout,mapFile,relPath);
+    convertMapFile(tmpout,mapFile,relPath,TRUE);
     if (!tmpstr.isEmpty())
     {
       out << "<map name=\"" << mapLabel << "\" id=\"" << mapLabel << "\">" << endl;
@@ -2522,10 +2530,10 @@ void DotGfxHierarchyTable::addHierarchy(DotNode *n,ClassDef *cd,bool hideSuper)
           //printf("  inserting %s (%p)\n",bClass->name().data(),bn);
           m_usedNodes->insert(bClass->name(),bn); // add node to the used list
         }
-        if (!bClass->visited && !hideSuper && bClass->subClasses())
+        if (!bClass->isVisited() && !hideSuper && bClass->subClasses())
         {
-          bool wasVisited=bClass->visited;
-          bClass->visited=TRUE;
+          bool wasVisited=bClass->isVisited();
+          bClass->setVisited(TRUE);
           addHierarchy(bn,bClass,wasVisited);
         }
       }
@@ -2575,10 +2583,10 @@ void DotGfxHierarchyTable::addClassList(ClassSDict *cl)
       //m_usedNodes->clear();
       m_usedNodes->insert(cd->name(),n);
       m_rootNodes->insert(0,n);   
-      if (!cd->visited && cd->subClasses())
+      if (!cd->isVisited() && cd->subClasses())
       {
-        addHierarchy(n,cd,cd->visited);
-        cd->visited=TRUE;
+        addHierarchy(n,cd,cd->isVisited());
+        cd->setVisited(TRUE);
       }
     }
   }

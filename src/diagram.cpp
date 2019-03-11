@@ -261,7 +261,7 @@ static void writeMapArea(FTextStream &t,ClassDef *cd,QCString relPath,
     t << "<area ";
     if (!ref.isEmpty()) 
     {
-      t << externalLinkTarget() << externalRef(relPath,ref,FALSE);
+      t << externalLinkTarget();
     }
     t << "href=\"";
     t << externalRef(relPath,ref,TRUE);
@@ -1020,7 +1020,7 @@ void clearVisitFlags()
   ClassDef *cd;
   for (;(cd=cli.current());++cli)
   {
-    cd->visited=FALSE;
+    cd->setVisited(FALSE);
   }
 }
 
